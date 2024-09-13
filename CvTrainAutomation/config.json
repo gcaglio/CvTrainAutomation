@@ -1,0 +1,28 @@
+{
+  "Webcams": [
+    {
+      "Id": "USB",
+      "StreamIndex": 1,
+      "Url": "http://example.com/api/qrdata?webcam={webcamId}&data={qrCodeData}",
+      "Width": 800,
+      "Height": 600,
+      "Fps": 15,
+      "Focus": 100
+    },
+    {
+      "Id": "Builtin",
+      "StreamIndex": 999,
+      "Url": "http://example.com/api/qrdata?webcam={webcamId}&data={qrCodeData}",
+      "Width": 960,
+      "Height": 540,
+      "Fps": 30,
+      "Focus": 100
+    },
+    {
+      "Id": "Webcam2",
+      "StreamIndex": 998,
+      "Url": "http://example.com/api/qrdata?camera={webcamId}&qr={qrCodeData}"
+    }
+  ]
+}
+
