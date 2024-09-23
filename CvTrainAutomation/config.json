@@ -2,21 +2,118 @@
   "Webcams": [
     {
       "Id": "USB",
-      "StreamIndex": 1,
-      "Url": "http://example.com/api/qrdata?webcam={webcamId}&data={qrCodeData}",
+      "StreamIndex": 2,
       "Width": 800,
       "Height": 600,
       "Fps": 15,
-      "Focus": 100
+      "Focus": 1,
+      "Hooks": [
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 0, \"O2_pwr\": 0 }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "1000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 800, \"O1_dir\" : 1, \"O2_pwr\": 0 }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "3000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 0, \"O2_pwr\": 0 }"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_1/Command", 
+          "Payload": "{ \"O1_pwr\":1000,\"O1_dir\":1,\"O1_timeout\":3000,\"O3_status\":1,\"O3_timeout\":10000, \"O4_status\" : 0  }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "5000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 800, \"O1_dir\" : 0, \"O2_pwr\": 1000 }"
+        }
+
+
+
+      ]
+
+
+
     },
     {
       "Id": "Builtin",
       "StreamIndex": 999,
-      "Url": "http://example.com/api/qrdata?webcam={webcamId}&data={qrCodeData}",
       "Width": 960,
       "Height": 540,
       "Fps": 30,
-      "Focus": 100
+      "Focus": 100,
+      "Hooks": [
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 0, \"O2_pwr\": 0 }"
+
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_1/Command",
+          "Payload": "{ \"O1_pwr\":1000,\"O1_dir\":1,\"O1_timeout\":3000,\"O3_status\":1,\"O3_timeout\":10000, \"O4_status\" : 0  }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "5000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://02217aafe35c41abad66961677629ef1.s2.eu.hivemq.cloud:8883",
+          "Username": "brick_user",
+          "Password": "brick_user01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 800, \"O2_pwr\": 1000 }"
+        }
+
+
+
+      ]
+
     },
     {
       "Id": "Webcam2",

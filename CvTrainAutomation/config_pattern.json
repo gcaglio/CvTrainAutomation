@@ -1,61 +1,24 @@
 {
-  "TEST_Patterns": [
-    {
-      "Id": 1,
-      "Description": "Esagono",
-      "Path": "C:/Users/40036188/source/repos/QrTrainAutomation/QrTrainAutomation/pattern/exagon.png"
-    },
-    {
-      "Id": 2,
-      "Description": "Triangolo",
-      "Path": "C:/Users/40036188/source/repos/QrTrainAutomation/QrTrainAutomation/pattern/triangle.png"
-    },
-    {
-      "Id": 3,
-      "Description": "empty",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_empty.png"
-    },
-    {
-      "Id": 3,
-      "Description": "Quadrato",
-      "Path": "C:/Users/40036188/source/repos/QrTrainAutomation/QrTrainAutomation/pattern/square.png"
-    }
-
-
-  ],
-
+  
   "Patterns": [
-    {
-      "Id": 1,
-      "Description": "Constitution",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_constitution.png"
-    },
-    {
-      "Id": 1,
-      "Description": "Constitution pattern",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_constitution_pattern.png"
-    },
-    {
-      "Id": 2,
-      "Description": "cargo_verde",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_cargo_verde.png"
-    },
+
+
 
     {
       "Id": 4,
-      "Description": "cargo_verde pattern",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_cargo_verde_pattern.png"
+      "Description": "cargo_verde cabin",
+      "Path": "C:\\temp\\cargo_verde_cabin.jpg"
     },
     {
       "Id": 5,
-      "Description": "cargo_rosso",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_cargo_rosso.png"
+      "Description": "cargo_verde front",
+      "Path": "C:\\Users\\gcagl\\Pictures\\cargo_verde_front.png"
     },
 
     {
       "Id": 6,
-      "Description": "cargo_rosso pattern",
-      "Path": "C:\\Users\\40036188\\Pictures\\zz_cargo_rosso_pattern.png"
+      "Description": "cargo_verde plate",
+      "Path": "C:\\Users\\gcagl\\Pictures\\cargo_verde_plate.png"
     }
 
   ]

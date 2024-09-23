@@ -19,6 +19,7 @@ namespace QrTrainAutomation
 
     class MqttPublisher
     {
+
         public static async Task PublishMqttsMessageAsync(string brokerAddress, int port, string clientId, string username, string password, string topic, string message)
         {
             // Crea un'istanza del client MQTT
@@ -59,5 +60,5 @@ namespace QrTrainAutomation
         }
     }
 
-
 }
+

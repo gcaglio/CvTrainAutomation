@@ -1,24 +1,22 @@
-﻿using System;
+﻿using AForge.Video.DirectShow;
+using Emgu.CV;
+using Emgu.CV.Cuda;
+using Emgu.CV.CvEnum;
+using Emgu.CV.Structure;
+using QrTrainAutomation;
 using System.Collections;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.IO;
-using System.Net.Http;
+using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
-using AForge.Video.DirectShow;
-using Emgu.CV;
-using Emgu.CV.CvEnum;
-using Emgu.CV.Structure;
-using Emgu.CV.Util;
 
 class Program
 {
 
-    static int frame_index=0;
+    static int frame_index = 0;
     static Hashtable hook_sent;
+    static bool gpuAvailable = false;
 
-    
 
     static async Task Main(string[] args)
     {
@@ -34,10 +32,10 @@ class Program
 
         // Inizializza le webcam
         var videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-        for (int v=0; v < videoDevices.Count;v++)
+        for (int v = 0; v < videoDevices.Count; v++)
         {
             var device = videoDevices[v];
-            Console.WriteLine("INFO : detected webcam '" + videoDevices[v].Name + "' with index '"+v+"'");
+            Console.WriteLine("INFO : detected webcam '" + videoDevices[v].Name + "' with index '" + v + "'");
         }
 
 
@@ -94,7 +92,7 @@ class Program
                 }
 
 
-   
+
 
 
                 // Set focus
@@ -109,6 +107,7 @@ class Program
                     Console.WriteLine($"ERROR : Webcam con StreamIndex {webcamConfig.StreamIndex} - La webcam non supporta la regolazione del fuoco.");
                 }
 
+                Thread.Sleep(2000);
                 videoSource.Start();
             }
             else
@@ -117,6 +116,11 @@ class Program
             }
         }
 
+
+        // Verifica se la GPU è disponibile
+        gpuAvailable = CudaInvoke.HasCuda;
+        Console.WriteLine("INFO : system has gpu/cuda = " + gpuAvailable);
+        
         Console.WriteLine("Premi un tasto per uscire...");
         Console.ReadKey();
     }
@@ -136,9 +140,9 @@ class Program
 
         }
 
-        PatternMat[] templates = new  PatternMat[valid_pictures];
+        PatternMat[] templates = new PatternMat[valid_pictures];
 
-        int c = 0;  
+        int c = 0;
         foreach (var pattern in patterns.Patterns)
         {
 
@@ -148,7 +152,7 @@ class Program
                 Console.WriteLine("ERROR : pattern '" + pattern.Path + "' does not exists!");
                 continue;
             }
-            
+
             using var template = new Image<Gray, byte>(pattern.Path).Mat;
             PatternMat t = new PatternMat();
             t.Mat = template;
@@ -163,9 +167,123 @@ class Program
 
     }
 
+
+
     static void ProcessFrame(Bitmap frame, WebcamConfig config, PatternsConfig patterns)
     {
+        if (frame_index % 2 != 0)
+        {
+            frame_index++;
+            return;
+        }
+        else
+        {
+
+            frame_index = 0;
+        }
+
+        using var mat = BitmapToMat(frame); // Converte il bitmap in Mat per OpenCV
+
+        CvInvoke.Resize(mat, mat, new Size(mat.Width / 2, mat.Height / 2));
         
+
+
+
+        Confidence[] confidences = new Confidence[patterns.Patterns.Count()];
+        int c = 0;
+
+
+
+        // Parallelizza l'elaborazione di ciascun pattern
+        Parallel.ForEach(patterns.Patterns, (pattern, state, index) =>
+        {
+            FileInfo f = new FileInfo(pattern.Path);
+            if (!f.Exists)
+            {
+                Console.WriteLine($"ERROR : pattern '{pattern.Path}' does not exist!");
+                return;
+            }
+
+            // Carica il template del pattern corrente
+            var template = new Image<Bgr, byte>(pattern.Path).Mat;
+            CvInvoke.Resize(template, template, new Size(template.Width / 2, template.Height / 2));
+            if (template.IsEmpty)
+            {
+                Console.WriteLine($"ERROR : pattern '{pattern.Path}' is empty!");
+                return;
+            }
+
+            // Se la GPU è disponibile, puoi usare operazioni GPU prima di MatchTemplate
+            if (gpuAvailable)
+            {
+                // Esempio: puoi caricare l'immagine e il template su GPU per eventuali pre-processing
+                using var gpuFrame = new CudaImage<Bgr, byte>(mat);
+                using var gpuTemplate = new CudaImage<Bgr, byte>(template);
+
+                // Esegui operazioni GPU-accelerate come ridimensionamento o conversioni di colore
+                // gpuFrame.Convert<Gray, byte>(); // Esempio di operazione sulla GPU
+
+                // Al termine delle operazioni GPU, scarica le immagini processate dalla GPU alla CPU
+                gpuFrame.Download(mat);
+                gpuTemplate.Download(template);
+            }
+
+            // Esegui il template matching sulla CPU (in quanto non disponibile sulla GPU)
+            using Mat result = new Mat();
+            CvInvoke.MatchTemplate(mat, template, result, Emgu.CV.CvEnum.TemplateMatchingType.CcoeffNormed);
+
+            // Estrai i risultati del matching
+            result.MinMax(out double[] minValues, out double[] maxValues, out Point[] minLocations, out Point[] maxLocations);
+
+            // Salva la confidenza corrente
+            confidences[(int)index] = new Confidence
+            {
+                Patternconfig = pattern,
+                ConfPercentage = maxValues[0],
+                hook_sent_timestamp = DateTime.MaxValue
+            };
+        });
+
+        // Trova il pattern con la confidenza massima
+        Confidence current_max = confidences[0];
+        current_max.isMax = true;
+        for (int m = 1; m < confidences.Length; m++)
+        {
+            if (current_max.ConfPercentage < confidences[m].ConfPercentage)
+            {
+                current_max.isMax = false;
+                current_max = confidences[m];
+                current_max.isMax = true;
+            }
+        }
+
+        // Stampa i risultati e controlla i trigger
+        Console.WriteLine("DEBUG : results");
+        double threshold = 0.6;
+        foreach (Confidence confidence in confidences)
+        {
+            string selector = confidence.isMax ? ">" : " ";
+            string choosen = confidence.ConfPercentage > threshold ? "*" : " ";
+
+            Console.WriteLine($"{choosen}{selector} {confidence.Patternconfig.Description} with confidence {confidence.ConfPercentage}");
+
+            if (confidence.isMax && confidence.ConfPercentage > threshold)
+            {
+                Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
+
+                // Esegui le azioni nei hooks in un thread parallelo
+                Thread hookThread = new Thread(() => ExecuteHooks(config.Hooks, confidence.Patternconfig.Description));
+                hookThread.Start();
+            }
+        }
+
+        // Riposiziona il cursore della console per un output leggibile
+        Console.SetCursorPosition(0, Console.CursorTop - confidences.Length - 1);
+    }
+
+    static void ProcessFrame2(Bitmap frame, WebcamConfig config, PatternsConfig patterns)
+    {
+
         if (frame_index % 3 != 0)
         {
             frame_index++;
@@ -175,58 +293,93 @@ class Program
         {
             frame_index = 0;
         }
-        
+
 
 
 
         using var mat = BitmapToMat(frame);
-        var grayMat = new Mat();
+        //var grayMat = new Mat();
         //CvInvoke.CvtColor(mat, grayMat, ColorConversion.Bgr2Gray);
-        CvInvoke.CvtColor(mat, grayMat, ColorConversion.Bgr2Rgb);
+        //CvInvoke.CvtColor(mat, grayMat, ColorConversion.Bgr2Rgb);
         Confidence[] confidences = new Confidence[patterns.Patterns.Count()];
         int c = 0;
 
+
+        Parallel.For(0, patterns.Patterns.Length, (i) =>
+        {
+            var pattern = patterns.Patterns[i];
+            // Carica il template e confronta
+            var template = new Image<Bgr, byte>(pattern.Path).Mat;
+            if (!template.IsEmpty)
+            {
+                using var result = new Mat();
+                CvInvoke.MatchTemplate(mat, template, result, TemplateMatchingType.CcoeffNormed);
+                result.MinMax(out double[] minValues, out double[] maxValues, out Point[] minLocations, out Point[] maxLocations);
+
+                lock (confidences) // sincronizza l'accesso a "confidences" per la scrittura in parallelo
+                {
+                    confidences[i] = new Confidence
+                    {
+                        Patternconfig = pattern,
+                        ConfPercentage = maxValues[0],
+                        hook_sent_timestamp = DateTime.MaxValue
+                    };
+                }
+            }
+        });
+
+
+        /* NON PARALLELO
         foreach (var pattern in patterns.Patterns)
         {
 
             FileInfo f = new FileInfo(pattern.Path);
-            if (!f.Exists)
+            if (!f.Exists )
             {
-                Console.WriteLine("ERROR : pattern '"+pattern.Path+"' does not exists!");
+                Console.WriteLine("ERROR : pattern '" + pattern.Path + "' does not exists!");
             }
 
             //using var template = new Image<Gray, byte>(pattern.Path).Mat;
-            using var template = new Image<Emgu.CV.Structure.Rgb, byte>(pattern.Path).Mat;
-            
+            var template = new Image<Emgu.CV.Structure.Bgr, byte>(pattern.Path).Mat;
+            if (template.IsEmpty)
+            {
+                Console.WriteLine("ERROR : pattern '" + pattern.Path + "' is empty!");
+                continue;
+            }
             using var result = new Mat();
 
             // Confronto tra il frame attuale e il pattern
-            CvInvoke.MatchTemplate(grayMat, template, result, TemplateMatchingType.CcoeffNormed);
-            
+            //CvInvoke.MatchTemplate(grayMat, template, result, TemplateMatchingType.CcoeffNormed);
+            CvInvoke.MatchTemplate( mat, template, result, TemplateMatchingType.CcoeffNormed);
 
             result.MinMax(out double[] minValues, out double[] maxValues, out Point[] minLocations, out Point[] maxLocations);
 
-            //save confidence
+            //save confidence       
             confidences[c] = new Confidence();
             confidences[c].Patternconfig = pattern;
             confidences[c].ConfPercentage = maxValues[0];
-            confidences[c].hook_sent_timestamp = DateTime.MaxValue ;        //set to max value to avoid first false positive
+            confidences[c].hook_sent_timestamp = DateTime.MaxValue;        //set to max value to avoid first false positive
 
 
             // Se il valore di confidenza è alto, segnala la corrispondenza
             //Console.WriteLine($"DEBUG [Webcam ID: {config.Id}] Pattern '{pattern.Description}' trovato con confidenza {maxValues[0]:F2}");
-            /*
-            if (maxValues[0] >= 0.4)
-            {
-            //    Console.WriteLine($"PASSED [Webcam ID: {config.Id}] Pattern '{pattern.Description}' trovato con confidenza {maxValues[0]:F2}");
-                var rect = new Rectangle(maxLocations[0], template.Size);
-                CvInvoke.Rectangle(mat, rect, new MCvScalar(0, 255, 0), 3);
-            }
-            */
-            //CvInvoke.Imshow($"Webcam {config.Id}", mat);
             
-            c++;            
+            //if (maxValues[0] >= 0.4)
+            //{
+            ////    Console.WriteLine($"PASSED [Webcam ID: {config.Id}] Pattern '{pattern.Description}' trovato con confidenza {maxValues[0]:F2}");
+            //    var rect = new Rectangle(maxLocations[0], template.Size);
+            //    CvInvoke.Rectangle(mat, rect, new MCvScalar(0, 255, 0), 3);
+            //}
+            
+        //CvInvoke.Imshow($"Webcam {config.Id}", mat);
+
+        c++;    
         }
+
+
+        */
+
+
 
         Confidence current_max = confidences[0];
         current_max.isMax = true;
@@ -235,16 +388,16 @@ class Program
             if (current_max.ConfPercentage < confidences[m].ConfPercentage)
             {
                 current_max.isMax = false;
-                
+
                 current_max = confidences[m];
                 current_max.isMax = true;
             }
         }
 
-      
+
 
         Console.WriteLine("DEBUG : results");
-        double threshold = 0.7;
+        double threshold = 0.6;
         foreach (Confidence confidence in confidences)
         {
             string selector = " ";
@@ -252,24 +405,40 @@ class Program
                 selector = ">";
 
             string choosen = " ";
-            if (confidence.ConfPercentage>threshold)
+            if (confidence.ConfPercentage > threshold)
                 choosen = "*";
 
 
-            Console.WriteLine("       "+choosen+selector + confidence.Patternconfig.Description + " with confidence " + confidence.ConfPercentage);
+            Console.WriteLine("       " + choosen + selector + confidence.Patternconfig.Description + " with confidence " + confidence.ConfPercentage);
 
 
             // chiamo l'hook e aggiorno la hashtable
+            /*
             if (confidence.isMax && confidence.ConfPercentage > threshold)
             {
-                if (  ((Confidence)hook_sent[config.Id]).hook_sent_timestamp   )
-                hook_sent[config.Id] = confidence;
+                if (((Confidence)hook_sent[config.Id]).hook_sent_timestamp)
+                    hook_sent[config.Id] = confidence;
                 confidence.hook_sent_timestamp = DateTime.Now;
+            }*/
+
+
+
+            if (confidence.isMax && confidence.ConfPercentage > threshold)
+            {
+                Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
+
+                // Esegui le azioni nei hooks in un thread parallelo
+                Thread hookThread = new Thread(() => ExecuteHooks(config.Hooks, confidence.Patternconfig.Description));
+                hookThread.Start();
             }
 
-
         }
-        Console.SetCursorPosition(0, Console.CursorTop - confidences.Count() -1);
+        Console.SetCursorPosition(0, Console.CursorTop - confidences.Count() - 1);
+
+
+
+
+
         /*
         
         foreach (var pattern in templates)
@@ -305,6 +474,30 @@ class Program
         //}
     }
 
+    static void ExecuteHooks(Hook[] hooks, string qrCodeData)
+    {
+        foreach (var hook in hooks)
+        {
+            switch (hook.Type.ToLower())
+            {
+                case "https":
+                    SendDataToServer(hook.Endpoint, qrCodeData, hook.Username, hook.Password, hook.Payload);
+                    break;
+                case "mqtt":
+                    Uri uri = new Uri(hook.Endpoint);
+                    MqttPublisher.PublishMqttsMessageAsync(uri.Host, uri.Port, "CV_recognizer", hook.Username, hook.Password, hook.Topic, hook.Payload);
+                    break;
+                case "sleep":
+                    int delay = int.Parse(hook.Payload);
+                    Console.WriteLine($"Sleeping for {delay} ms");
+                    Thread.Sleep(delay);
+                    break;
+                default:
+                    Console.WriteLine($"Unknown hook type: {hook.Type}");
+                    break;
+            }
+        }
+    }
     static Mat BitmapToMat(Bitmap bitmap)
     {
         var mat = new Mat(bitmap.Height, bitmap.Width, DepthType.Cv8U, 3);
@@ -329,19 +522,31 @@ class Program
         return JsonSerializer.Deserialize<PatternsConfig>(json);
     }
 
-    static async Task SendDataToServer(string webcamId, string qrCodeData, string url)
+    static async Task SendDataToServer(string url, string qrCodeData, string username, string password, string payloadTemplate)
     {
         using var client = new HttpClient();
+        var payload = payloadTemplate.Replace("{qrCodeData}", qrCodeData);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+        {
+            var byteArray = Encoding.ASCII.GetBytes($"{username}:{password}");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
+        }
+
         try
         {
-            Console.WriteLine($"INFO : sending string '{qrCodeData}' from webcam '{webcamId}'.\r\n      {url}");
-            var response = await client.GetAsync(url);
+            var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
-            Console.WriteLine("INFO : Dati inviati consuccesso.");
+            Console.WriteLine("INFO: HTTPS Hook executed successfully.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Errore nell'invio dei dati: {ex.Message}");
+            Console.WriteLine($"ERROR: HTTPS Hook failed: {ex.Message}");
         }
     }
 
@@ -378,6 +583,19 @@ public class WebcamConfig
     public int Height { get; set; }  // Altezza desiderata
     public int Fps { get; set; }     // Framerate desiderato
     public int Focus { get; set; }   // Focus 1-100 (1 infinito, 100 vicino)
+
+    public Hook[] Hooks { get; set; }
+}
+
+public class Hook
+{
+    public string Type { get; set; }        // Tipo: html, https, mqtt, mqtts, sleep
+    public string Endpoint { get; set; }    // L'URL completo del protocollo
+    public string Username { get; set; }    // Username (opzionale, usato per MQTT o HTTPS)
+    public string Password { get; set; }    // Password (opzionale, usato per MQTT o HTTPS)
+    public string Payload { get; set; }     // Payload da inviare con POST o MQTT topic
+
+    public string Topic { get; set; }     // Topic
 }
 
 public class PatternConfig
