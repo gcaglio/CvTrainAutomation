@@ -45,7 +45,7 @@ class Program
             if (webcamConfig.StreamIndex < videoDevices.Count)
             {
 
-                hook_sent[webcamConfig.Id] = null;      //inizializzo con NULL
+               
 
                 var videoSource = new VideoCaptureDevice(videoDevices[webcamConfig.StreamIndex].MonikerString);
                 videoSource.NewFrame += (sender, eventArgs) => ProcessFrame(eventArgs.Frame, webcamConfig, patterns);
@@ -107,7 +107,7 @@ class Program
                     Console.WriteLine($"ERROR : Webcam con StreamIndex {webcamConfig.StreamIndex} - La webcam non supporta la regolazione del fuoco.");
                 }
 
-                Thread.Sleep(2000);
+                //Thread.Sleep(2000);
                 videoSource.Start();
             }
             else
@@ -171,6 +171,8 @@ class Program
 
     static void ProcessFrame(Bitmap frame, WebcamConfig config, PatternsConfig patterns)
     {
+        int cooldown_msec = 13000;
+
         if (frame_index % 2 != 0)
         {
             frame_index++;
@@ -178,9 +180,29 @@ class Program
         }
         else
         {
-
             frame_index = 0;
+            // Controllo se la chiave esiste nella hashtable
+            if (hook_sent.ContainsKey(config.Id) && hook_sent[config.Id]!=null)
+            {
+                Confidence previousConfidence = (Confidence)hook_sent[config.Id];
+
+                // Controllo se il campo hook_sent_timestamp è valorizzato e se è < NOW
+                if (previousConfidence.hook_sent_timestamp != null && ((long)(DateTime.Now - previousConfidence.hook_sent_timestamp).TotalMilliseconds > cooldown_msec) )
+                {
+                    hook_sent.Remove(config.Id);
+                }
+                else
+                {
+                    Console.WriteLine($"Skipping actions for webcam : " + config.Id + " due to cooldown (" + (cooldown_msec - (long)(DateTime.Now - previousConfidence.hook_sent_timestamp).TotalMilliseconds) + " msec).");
+                    return;  // Se il timestamp è recente, salta l'esecuzione degli hook
+                }
+            }
+
         }
+
+
+
+
 
         using var mat = BitmapToMat(frame); // Converte il bitmap in Mat per OpenCV
 
@@ -190,7 +212,7 @@ class Program
 
 
         Confidence[] confidences = new Confidence[patterns.Patterns.Count()];
-        int c = 0;
+        
 
 
 
@@ -240,7 +262,7 @@ class Program
             {
                 Patternconfig = pattern,
                 ConfPercentage = maxValues[0],
-                hook_sent_timestamp = DateTime.MaxValue
+                hook_sent_timestamp = DateTime.Now
             };
         });
 
@@ -264,16 +286,30 @@ class Program
         {
             string selector = confidence.isMax ? ">" : " ";
             string choosen = confidence.ConfPercentage > threshold ? "*" : " ";
+            
 
             Console.WriteLine($"{choosen}{selector} {confidence.Patternconfig.Description} with confidence {confidence.ConfPercentage}");
+
+
 
             if (confidence.isMax && confidence.ConfPercentage > threshold)
             {
                 Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
 
+                // Aggiorna la hashtable con l'oggetto Confidence aggiornato
+                hook_sent[config.Id] = confidence;
+
+
                 // Esegui le azioni nei hooks in un thread parallelo
-                Thread hookThread = new Thread(() => ExecuteHooks(config.Hooks, confidence.Patternconfig.Description));
-                hookThread.Start();
+                //Thread hookThread = new Thread(() => ExecuteHooks(config.Hooks, confidence.Patternconfig.Description));
+                //hookThread.Start();
+
+                // Esegui le azioni nei hooks del pattern, non più dal config della webcam
+                if (confidence.Patternconfig.Hooks != null)
+                {
+                    Thread hookThread = new Thread(() => ExecuteHooks(confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
+                    hookThread.Start();
+                }
             }
         }
 
@@ -428,7 +464,7 @@ class Program
                 Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
 
                 // Esegui le azioni nei hooks in un thread parallelo
-                Thread hookThread = new Thread(() => ExecuteHooks(config.Hooks, confidence.Patternconfig.Description));
+                Thread hookThread = new Thread(() => ExecuteHooks(confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
                 hookThread.Start();
             }
 
@@ -481,10 +517,12 @@ class Program
             switch (hook.Type.ToLower())
             {
                 case "https":
+                    Console.WriteLine($"Sending https " + hook.Payload);
                     SendDataToServer(hook.Endpoint, qrCodeData, hook.Username, hook.Password, hook.Payload);
                     break;
                 case "mqtt":
                     Uri uri = new Uri(hook.Endpoint);
+                    Console.WriteLine($"Sending mqtts " + hook.Payload);
                     MqttPublisher.PublishMqttsMessageAsync(uri.Host, uri.Port, "CV_recognizer", hook.Username, hook.Password, hook.Topic, hook.Payload);
                     break;
                 case "sleep":
@@ -584,7 +622,7 @@ public class WebcamConfig
     public int Fps { get; set; }     // Framerate desiderato
     public int Focus { get; set; }   // Focus 1-100 (1 infinito, 100 vicino)
 
-    public Hook[] Hooks { get; set; }
+
 }
 
 public class Hook
@@ -603,6 +641,8 @@ public class PatternConfig
     public int Id { get; set; }
     public string Description { get; set; }
     public string Path { get; set; }
+
+    public Hook[] Hooks { get; set; }
 }
 
 public class PatternMat
