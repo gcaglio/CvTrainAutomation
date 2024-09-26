@@ -16,10 +16,13 @@ class Program
     static int frame_index = 0;
     static Hashtable hook_sent;
     static bool gpuAvailable = false;
-
+    static ArrayList video_devices = new ArrayList();
+    static int cooldown_msec = 13000;
 
     static async Task Main(string[] args)
     {
+
+        
         // Carica configurazione
         var config = LoadConfiguration("config.json");
 
@@ -45,10 +48,11 @@ class Program
             if (webcamConfig.StreamIndex < videoDevices.Count)
             {
 
-               
 
-                var videoSource = new VideoCaptureDevice(videoDevices[webcamConfig.StreamIndex].MonikerString);
+
+                VideoCaptureDevice videoSource = new VideoCaptureDevice(videoDevices[webcamConfig.StreamIndex].MonikerString);
                 videoSource.NewFrame += (sender, eventArgs) => ProcessFrame(eventArgs.Frame, webcamConfig, patterns);
+                video_devices.Add(videoSource);
 
                 // Set resolution and fps
                 var videoCapabilities = videoSource.VideoCapabilities;
@@ -107,8 +111,9 @@ class Program
                     Console.WriteLine($"ERROR : Webcam con StreamIndex {webcamConfig.StreamIndex} - La webcam non supporta la regolazione del fuoco.");
                 }
 
-                //Thread.Sleep(2000);
+                
                 videoSource.Start();
+               
             }
             else
             {
@@ -120,8 +125,9 @@ class Program
         // Verifica se la GPU è disponibile
         gpuAvailable = CudaInvoke.HasCuda;
         Console.WriteLine("INFO : system has gpu/cuda = " + gpuAvailable);
-        
-        Console.WriteLine("Premi un tasto per uscire...");
+        Thread.Sleep(3000);
+        Console.Clear();
+        //Console.WriteLine("Premi un tasto per uscire...");
         Console.ReadKey();
     }
 
@@ -171,7 +177,7 @@ class Program
 
     static void ProcessFrame(Bitmap frame, WebcamConfig config, PatternsConfig patterns)
     {
-        int cooldown_msec = 13000;
+        
 
         if (frame_index % 2 != 0)
         {
@@ -193,7 +199,7 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine($"Skipping actions for webcam : " + config.Id + " due to cooldown (" + (cooldown_msec - (long)(DateTime.Now - previousConfidence.hook_sent_timestamp).TotalMilliseconds) + " msec).");
+                    //Console.WriteLine($"Skipping actions for webcam : " + config.Id + " due to cooldown (" + (cooldown_msec - (long)(DateTime.Now - previousConfidence.hook_sent_timestamp).TotalMilliseconds) + " msec).");
                     return;  // Se il timestamp è recente, salta l'esecuzione degli hook
                 }
             }
@@ -271,30 +277,37 @@ class Program
         current_max.isMax = true;
         for (int m = 1; m < confidences.Length; m++)
         {
-            if (current_max.ConfPercentage < confidences[m].ConfPercentage)
+            
+            if (confidences[m]!=null && current_max.ConfPercentage < confidences[m].ConfPercentage)
             {
                 current_max.isMax = false;
                 current_max = confidences[m];
                 current_max.isMax = true;
             }
+            
         }
 
         // Stampa i risultati e controlla i trigger
-        Console.WriteLine("DEBUG : results");
+        //Console.WriteLine("DEBUG : results");
         double threshold = 0.6;
+        int line = 0;
         foreach (Confidence confidence in confidences)
         {
-            string selector = confidence.isMax ? ">" : " ";
-            string choosen = confidence.ConfPercentage > threshold ? "*" : " ";
-            
+            string selector = (confidence!=null && confidence.isMax) ? ">" : " ";
+            string choosen =  (confidence!=null && confidence.ConfPercentage > threshold ) ? "*" : " ";
 
-            Console.WriteLine($"{choosen}{selector} {confidence.Patternconfig.Description} with confidence {confidence.ConfPercentage}");
+            Console.SetCursorPosition(0, config.StreamIndex *4+ line);
+            if (confidence != null) {
+                Console.WriteLine($"{config.Id} {choosen}{selector} {confidence.Patternconfig.Description} with confidence {confidence.ConfPercentage}");
+            } else
+                Console.WriteLine($"{config.Id} {choosen}{selector} #NaN# ");
 
-
-
-            if (confidence.isMax && confidence.ConfPercentage > threshold)
+            if (confidence!=null && confidence.isMax && confidence.ConfPercentage > threshold)
             {
-                Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
+
+                //TODO : devo calcolare il n° di webcam aperte, adesso cablo 2
+                Console.SetCursorPosition(0, patterns.Patterns.Count() * 3 + 2);
+                Console.WriteLine($"{config.Id} Triggering actions for pattern '{confidence.Patternconfig.Description}'");
 
                 // Aggiorna la hashtable con l'oggetto Confidence aggiornato
                 hook_sent[config.Id] = confidence;
@@ -307,14 +320,17 @@ class Program
                 // Esegui le azioni nei hooks del pattern, non più dal config della webcam
                 if (confidence.Patternconfig.Hooks != null)
                 {
-                    Thread hookThread = new Thread(() => ExecuteHooks(confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
+                    cooldown_msec = confidence.Patternconfig.Cooldown;
+                    Thread hookThread = new Thread(() => ExecuteHooks(config, confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
                     hookThread.Start();
                 }
             }
+
+            line++;
         }
 
         // Riposiziona il cursore della console per un output leggibile
-        Console.SetCursorPosition(0, Console.CursorTop - confidences.Length - 1);
+        //Console.SetCursorPosition(0, config.Id - confidences.Length - 1);
     }
 
     static void ProcessFrame2(Bitmap frame, WebcamConfig config, PatternsConfig patterns)
@@ -464,7 +480,7 @@ class Program
                 Console.WriteLine($"Triggering actions for pattern '{confidence.Patternconfig.Description}'");
 
                 // Esegui le azioni nei hooks in un thread parallelo
-                Thread hookThread = new Thread(() => ExecuteHooks(confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
+                Thread hookThread = new Thread(() => ExecuteHooks(config, confidence.Patternconfig.Hooks, confidence.Patternconfig.Description));
                 hookThread.Start();
             }
 
@@ -510,30 +526,32 @@ class Program
         //}
     }
 
-    static void ExecuteHooks(Hook[] hooks, string qrCodeData)
+    static void ExecuteHooks(WebcamConfig config, Hook[] hooks, string qrCodeData)
     {
         foreach (var hook in hooks)
         {
             switch (hook.Type.ToLower())
             {
                 case "https":
-                    Console.WriteLine($"Sending https " + hook.Payload);
+                    Console.WriteLine($"{config.Id} Sending https " + hook.Payload);
                     SendDataToServer(hook.Endpoint, qrCodeData, hook.Username, hook.Password, hook.Payload);
                     break;
                 case "mqtt":
                     Uri uri = new Uri(hook.Endpoint);
-                    Console.WriteLine($"Sending mqtts " + hook.Payload);
-                    MqttPublisher.PublishMqttsMessageAsync(uri.Host, uri.Port, "CV_recognizer", hook.Username, hook.Password, hook.Topic, hook.Payload);
+                    Console.WriteLine($"{config.Id} Sending mqtts " + hook.Payload);
+                    MqttPublisher.PublishMqttsMessageAsync(uri.Host, uri.Port, "CV_recognizer-" + DateTime.Now.Millisecond , hook.Username, hook.Password, hook.Topic, hook.Payload);
                     break;
                 case "sleep":
                     int delay = int.Parse(hook.Payload);
-                    Console.WriteLine($"Sleeping for {delay} ms");
+                    Console.WriteLine($"{config.Id} Sleeping for {delay} ms");
                     Thread.Sleep(delay);
                     break;
                 default:
-                    Console.WriteLine($"Unknown hook type: {hook.Type}");
+                    Console.WriteLine($"{config.Id} Unknown hook type: {hook.Type}");
                     break;
             }
+
+            Thread.Sleep(200);
         }
     }
     static Mat BitmapToMat(Bitmap bitmap)
@@ -641,6 +659,8 @@ public class PatternConfig
     public int Id { get; set; }
     public string Description { get; set; }
     public string Path { get; set; }
+
+    public int Cooldown { get; set; }
 
     public Hook[] Hooks { get; set; }
 }
