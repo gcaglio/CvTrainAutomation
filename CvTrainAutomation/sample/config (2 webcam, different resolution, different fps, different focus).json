@@ -1,0 +1,22 @@
+{
+  "Webcams": [
+    {
+      "Id": "USB_1",
+      "StreamIndex": 2,
+      "Width": 800,
+      "Height": 600,
+      "Fps": 30,
+      "Focus": 1
+    },
+    {
+      "Id": "USB_2",
+      "StreamIndex": 3,
+      "Width": 640,
+      "Height": 480,
+      "Fps": 15,
+      "Focus": 100
+    }
+
+  ]
+}
+

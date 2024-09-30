@@ -1,0 +1,142 @@
+{
+  "Patterns": [
+
+    {
+      "Id": 6,
+      "Description": "cargo_verde plate",
+      "Path": "C:\\Temp\\cargo_verde_plate.png",
+      "Cooldown":30000,    
+      "Hooks": [
+         {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Description" : "go back 3 sec",
+          "Payload": "{ \"O1_pwr\": 900, \"O1_dir\" : 0, \"O1_timeout\" : 5000 }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "3000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_2/Command", 
+          "Description" : "sw 2 divert",
+          "Payload": "{ \"O1_pwr\":1024,\"O1_dir\":1,\"O1_timeout\":3000,\"O3_status\":1,\"O3_timeout\":10000, \"O4_status\" : 0  }"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_1/Command", 
+          "Description" : "sw 1 divert",
+          "Payload": "{ \"O1_pwr\":1024,\"O1_dir\":1,\"O1_timeout\":3000,\"O3_status\":1,\"O3_timeout\":10000, \"O4_status\" : 0  }"
+        },
+
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "5000"
+        },
+         {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_constitution/Command",
+          "Payload": "{ \"O1_pwr\": 900, \"O1_dir\" : 0 }"
+        }
+
+
+
+      ]
+
+
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    {
+      "Id": 7,
+      "Description": "constitution rear",
+      "Path": "C:\\Temp\\constitution_rear.png",
+      "Cooldown":20000,
+      "Hooks": [
+         {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_constitution/Command",
+          "Description" : "go forward 3 seconds",
+          "Payload": "{ \"O1_pwr\": 900, \"O1_dir\" : 0, \"O1_timeout\" : 2000 }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "5000"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_1/Command", 
+          "Description" : "sw 1 straight",
+          "Payload": "{ \"O1_pwr\":1024,\"O1_dir\":0,\"O1_timeout\":3000,\"O4_status\":1,\"O4_timeout\":10000, \"O3_status\" : 0  }"
+        },
+        {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_switch_2/Command", 
+          "Description" : "sw 2 straight",
+          "Payload": "{ \"O1_pwr\":1024,\"O1_dir\":0,\"O1_timeout\":3000,\"O4_status\":1,\"O4_timeout\":10000, \"O3_status\" : 0  }"
+        },
+        {
+          "Type": "sleep",
+          "Endpoint": "",
+          "Payload": "5000"
+        },
+         {
+          "Type": "mqtt",
+          "Endpoint": "mqtts://9999999999999999999999999999999.s2.eu.hivemq.cloud:8883",
+          "Username": "XXXXXXX",
+          "Password": "XXXXXXX01",
+          "Topic" : "/CloudBrick/BRC_ESP_cargo_verde/Command",
+          "Payload": "{ \"O1_pwr\": 1000, \"O1_dir\" : 0 }"
+        }
+
+
+
+
+
+      ]
+
+
+
+    }
+
+  ]
+
+}
