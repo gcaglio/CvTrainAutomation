@@ -87,9 +87,13 @@ Example folders:
 
 It’s recommended to run the software in a well-lit environment.
 
-If you opt to create "plates," use distinct colors and patterns to facilitate recognition and increase confidence percentages.
+It's recommended to capture/save images directly from the in-place webcam.  
+You can use an image editor to crop and resize the image to have a better sample.  
+Hint : selecting small characteristic areas increase the confidence percentage (eg: you may consider to use a sticker with a simple geometric shape)  
+If you opt to create "plates", use distinct colors and patterns to facilitate recognition and increase confidence percentages.
 
-Frame analysis requires CPU power. If you notice delays in recognition, try lowering the webcam’s resolution or frame rate.
+Frame analysis requires CPU power. If you notice delays in recognition, try lowering the webcam’s resolution or frame rate.  
+You may consider to reduce the pattern image resolution or size.
 
 As seen in the demo video, it may happen that recognition does not occur on the first webcam pass, or even the second, but the third or fourth. This is normal: analysis requires a confidence level >60% to trigger the workflow. If objects move quickly or conditions are unstable (e.g., shaking, poor lighting), recognition won’t have the necessary confidence to "make a decision."
 
